@@ -122,6 +122,8 @@ pub fn fetch(alloc: std.mem.Allocator) ListError!FormattedVMS {
     var it = std.mem.tokenizeAny(u8, stdout, "\n");
     var vms = FormattedVMS.init(alloc);
 
+    errdefer vms.deinit();
+
     while (it.next()) |line| {
         try vms.append(try FormattedVM.fromQuery(alloc, line));
     }
