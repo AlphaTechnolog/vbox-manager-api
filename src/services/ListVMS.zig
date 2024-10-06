@@ -7,8 +7,8 @@ const ListError = anyerror || error{
 };
 
 const FormattedVM = struct {
-    name: ?[]u8,
-    uuid: ?[]u8,
+    name: []u8,
+    uuid: []u8,
     status: ?[]u8,
 
     fn statusFromUUID(alloc: std.mem.Allocator, uuid: []u8) ListError![]u8 {
@@ -50,36 +50,41 @@ const FormattedVM = struct {
         return process.stdout;
     }
 
+    /// Query is with the next form: `"{name}" {uuid}`.
     pub fn fromQuery(alloc: std.mem.Allocator, query: []const u8) !FormattedVM {
-        var it = std.mem.tokenizeAny(u8, query, " ");
+        var name = std.ArrayList(u8).init(alloc);
+        var uuid = std.ArrayList(u8).init(alloc);
 
-        const name = val: {
-            const res = it.next();
+        defer {
+            name.deinit();
+            uuid.deinit();
+        }
 
-            if (res) |v| {
-                break :val try alloc.dupe(u8, v[1 .. v.len - 1]);
+        var i: u8 = 0;
+        var write_ptr: *std.ArrayList(u8) = &name;
+
+        for (query) |c| {
+            if (c == '"') {
+                i += 1;
+                continue;
             }
 
-            break :val null;
-        };
-
-        const uuid = val: {
-            const res = it.next();
-
-            if (res) |v| {
-                break :val try alloc.dupe(u8, v[1 .. v.len - 1]);
+            if (c == '{' or c == '}' or (i == 2 and c == ' ')) {
+                continue;
             }
 
-            break :val null;
-        };
+            if (i == 2) {
+                write_ptr = &uuid;
+            }
+
+            try write_ptr.append(c);
+        }
 
         return FormattedVM{
-            .name = name,
-            .uuid = uuid,
+            .name = try alloc.dupe(u8, name.items),
+            .uuid = try alloc.dupe(u8, uuid.items),
             .status = val: {
-                const xuuid = uuid orelse break :val null;
-
-                break :val FormattedVM.statusFromUUID(alloc, xuuid) catch |err| {
+                break :val FormattedVM.statusFromUUID(alloc, uuid.items) catch |err| {
                     if (err == error.UnableToFetchStatus)
                         break :val null;
                     return err;
@@ -89,9 +94,12 @@ const FormattedVM = struct {
     }
 
     pub fn deinit(self: *FormattedVM, alloc: std.mem.Allocator) void {
-        if (self.name) |name| alloc.free(name);
-        if (self.uuid) |uuid| alloc.free(uuid);
-        if (self.status) |status| alloc.free(status);
+        alloc.free(self.name);
+        alloc.free(self.uuid);
+
+        if (self.status) |status| {
+            alloc.free(status);
+        }
     }
 };
 
