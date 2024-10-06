@@ -23,11 +23,19 @@ const Body = struct {
     },
 };
 
-const SilentExecError = std.process.Child.RunError || error{
-    UnexpectedError,
+const ShellResult = struct {
+    failed: bool,
+    allocator: std.mem.Allocator,
+    stdout: ?[]u8,
+    stderr: ?[]u8,
+
+    pub fn deinit(self: *ShellResult) void {
+        if (self.stdout) |stdout| self.allocator.free(stdout);
+        if (self.stderr) |stderr| self.allocator.free(stderr);
+    }
 };
 
-fn silentExec(alloc: std.mem.Allocator, shell: []const u8) SilentExecError![]u8 {
+fn silentExec(alloc: std.mem.Allocator, shell: []const u8) !ShellResult {
     const argv = [_][]const u8{
         "sudo",
         "bash",
@@ -40,31 +48,27 @@ fn silentExec(alloc: std.mem.Allocator, shell: []const u8) SilentExecError![]u8 
         .argv = &argv,
     });
 
-    defer alloc.free(process.stderr);
-
     if (process.term.Exited == 1) {
-        if (builtin.mode == .Debug) {
-            std.debug.print("command failed with:\n{s}\n", .{
-                process.stderr,
-            });
-        }
-        return error.UnexpectedError;
+        alloc.free(process.stdout);
+
+        return ShellResult{
+            .failed = true,
+            .allocator = alloc,
+            .stdout = null,
+            .stderr = process.stderr,
+        };
     }
 
-    if (builtin.mode == .Debug) {
-        std.debug.print("stdout:\n{s}\nstderr:\n{s}\n", .{
-            process.stdout,
-            process.stderr,
-        });
-    }
-
-    return process.stdout;
+    return ShellResult{
+        .failed = false,
+        .allocator = alloc,
+        .stdout = process.stdout,
+        .stderr = process.stderr,
+    };
 }
 
-const CreateShellError = anyerror || error{CommandsFailed};
-
 // TODO: Validate ostype & disk path
-fn createWithShell(alloc: std.mem.Allocator, payload: *const Body) CreateShellError![]u8 {
+fn createWithShell(alloc: std.mem.Allocator, payload: *const Body) !ShellResult {
     var creation_command = std.ArrayList(u8).init(alloc);
     defer creation_command.deinit();
 
@@ -171,9 +175,8 @@ fn createWithShell(alloc: std.mem.Allocator, payload: *const Body) CreateShellEr
         );
     }
 
-    return silentExec(alloc, creation_command.items) catch {
-        return error.CommandsFailed;
-    };
+    // The caller is responsable for calling free on `ShellResult`.
+    return try silentExec(alloc, creation_command.items);
 }
 
 pub fn createVM(alloc: std.mem.Allocator, req: *const zap.Request) !void {
@@ -197,45 +200,40 @@ pub fn createVM(alloc: std.mem.Allocator, req: *const zap.Request) !void {
         }) catch return;
     };
 
-    std.debug.print("Creating using shell VBoxManage...\n", .{});
+    defer parsed_body.deinit();
 
-    const stdout = createWithShell(alloc, &parsed_body.value) catch |err| {
-        if (err == error.CommandsFailed) {
-            var buf: [1024]u8 = undefined;
-            var msg_buf: [100]u8 = undefined;
+    var shell_result = createWithShell(alloc, &parsed_body.value) catch |err| {
+        var msg_buf: [100]u8 = undefined;
 
-            const msg = std.fmt.bufPrint(
-                &msg_buf,
-                "Unable to create vm: {s}",
-                .{
-                    @errorName(err),
-                },
-            ) catch return;
+        const msg = std.fmt.bufPrint(&msg_buf, "Unable to create vm: {s}\n", .{
+            @errorName(err),
+        }) catch return;
 
-            const response = .{
-                .is_err = true,
-                .msg = msg,
-            };
+        const response = .{
+            .is_err = true,
+            .message = msg,
+        };
 
-            if (zap.stringifyBuf(&buf, response, .{})) |json| {
-                req.setStatus(.internal_server_error);
-                return req.sendJson(json) catch return;
-            }
+        var response_buf: [456]u8 = undefined;
 
-            return err;
+        if (zap.stringifyBuf(&response_buf, response, .{})) |json| {
+            req.setStatus(.internal_server_error);
+            req.sendJson(json) catch return;
         }
 
-        return err;
+        return;
     };
 
-    var buf: [256]u8 = undefined;
+    defer shell_result.deinit();
 
-    const result = .{
-        .ok = true,
-        .stdout = stdout,
+    var buf: [2056]u8 = undefined;
+
+    const response = .{
+        .is_err = shell_result.failed,
+        .output = if (shell_result.failed) shell_result.stderr.? else shell_result.stdout.?,
     };
 
-    if (zap.stringifyBuf(&buf, result, .{})) |json| {
+    if (zap.stringifyBuf(&buf, response, .{})) |json| {
         return try req.sendJson(json);
     }
 }
