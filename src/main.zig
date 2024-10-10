@@ -19,6 +19,7 @@ fn handleRequest(req: zap.Request) void {
         },
         .POST => {
             if (std.mem.eql(u8, path, "/create")) {
+                std.debug.print("/create\n", .{});
                 return CreateVMController.createVM(alloc, &req) catch return;
             }
 
