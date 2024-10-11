@@ -6,6 +6,7 @@ const ListController = @import("./controllers/list.zig");
 const CreateVMController = @import("./controllers/createvm.zig");
 const StartVMController = @import("./controllers/startvm.zig");
 const StopVMController = @import("./controllers/stopvm.zig");
+const UnregisterVMController = @import("./controllers/unregistervm.zig");
 
 var alloc: std.mem.Allocator = undefined;
 
@@ -29,6 +30,11 @@ fn handleRequest(req: zap.Request) void {
 
             if (std.mem.eql(u8, path, "/stop")) {
                 return StopVMController.stopVM(alloc, &req) catch return;
+            }
+        },
+        .DELETE => {
+            if (std.mem.eql(u8, path, "/unregistervm")) {
+                return UnregisterVMController.unregisterVM(alloc, &req) catch return;
             }
         },
         else => return,
