@@ -12,7 +12,7 @@ pub fn startWithName(alloc: std.mem.Allocator, name: []const u8) StartError!void
         .{name},
     );
 
-    const args = [_][]const u8{ "bash", "-c", cmd };
+    const args = [_][]const u8{ "nohup", "bash", "-c", cmd };
 
     var child = std.process.Child.init(&args, alloc);
     child.stdin_behavior = .Ignore;

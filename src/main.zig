@@ -5,6 +5,7 @@ const zap = @import("zap");
 const ListController = @import("./controllers/list.zig");
 const CreateVMController = @import("./controllers/createvm.zig");
 const StartVMController = @import("./controllers/startvm.zig");
+const StopVMController = @import("./controllers/stopvm.zig");
 
 var alloc: std.mem.Allocator = undefined;
 
@@ -19,12 +20,15 @@ fn handleRequest(req: zap.Request) void {
         },
         .POST => {
             if (std.mem.eql(u8, path, "/create")) {
-                std.debug.print("/create\n", .{});
                 return CreateVMController.createVM(alloc, &req) catch return;
             }
 
             if (std.mem.startsWith(u8, path, "/start")) {
                 return StartVMController.startVM(alloc, &req) catch return;
+            }
+
+            if (std.mem.eql(u8, path, "/stop")) {
+                return StopVMController.stopVM(alloc, &req) catch return;
             }
         },
         else => return,
