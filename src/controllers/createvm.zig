@@ -194,8 +194,10 @@ pub fn createVM(alloc: std.mem.Allocator, req: *const zap.Request) !void {
             @errorName(err),
         });
 
+        req.setStatus(.bad_request);
+
         return sendError(req, .{
-            .is_error = true,
+            .is_err = true,
             .message = msg,
         }) catch return;
     };
@@ -213,6 +215,8 @@ pub fn createVM(alloc: std.mem.Allocator, req: *const zap.Request) !void {
             .is_err = true,
             .message = msg,
         };
+
+        req.setStatus(.internal_server_error);
 
         var response_buf: [456]u8 = undefined;
 
@@ -232,6 +236,10 @@ pub fn createVM(alloc: std.mem.Allocator, req: *const zap.Request) !void {
         .is_err = shell_result.failed,
         .output = if (shell_result.failed) shell_result.stderr.? else shell_result.stdout.?,
     };
+
+    if (shell_result.failed) {
+        req.setStatus(.internal_server_error);
+    }
 
     if (zap.stringifyBuf(&buf, response, .{})) |json| {
         return try req.sendJson(json);

@@ -24,8 +24,8 @@
     // internet connectivity.
     .dependencies = .{
         .zap = .{
-            .url = "https://github.com/zigzap/zap/archive/master.tar.gz",
-            .hash = "1220399fcdfff1fd73f8cbced2530ab805391f31d8c188db99ae7ba978dd77fd2814",
+            .url = "git+https://github.com/zigzap/zap#dfdb2db4ce0c2bf7776d94f01d11430b6dd0df0d",
+            .hash = "1220bb12de9055d585ee0b19c8c9da41ad49a660f5da8be1372c7b85ba43f6e47372",
         },
     },
     .paths = .{
