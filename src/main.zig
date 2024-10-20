@@ -67,6 +67,12 @@ fn handleRequest(req: zap.Request) void {
 }
 
 pub fn main() !void {
+    const stdout = std.io.getStdOut().writer();
+
+    try stdout.print("Running build in {s} mode\n", .{
+        @tagName(builtin.mode),
+    });
+
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() == .leak) {
         std.debug.panic("memleak\n", .{});
@@ -82,7 +88,6 @@ pub fn main() !void {
 
     try listener.listen();
 
-    const stdout = std.io.getStdOut().writer();
     try stdout.print("Listening at port 8080\n", .{});
 
     zap.start(.{

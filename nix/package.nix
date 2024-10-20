@@ -3,6 +3,7 @@
   stdenv,
   zig_0_13,
   xdg-utils,
+  git,
   optimize ? "Debug",
   ...
 }: let
@@ -17,7 +18,7 @@
   zigCache = stdenv.mkDerivation {
     inherit src;
 
-    pname = "vbox-manager-api-cache";
+    name = "vbox-manager-api-cache";
     nativeBuildInputs = [
       git
       zig-hook
