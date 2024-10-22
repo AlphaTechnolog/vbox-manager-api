@@ -12,6 +12,8 @@ var alloc: std.mem.Allocator = undefined;
 
 fn enableCors(req: *const zap.Request) !void {
     try req.setHeader("Access-Control-Allow-Origin", "*");
+    try req.setHeader("Access-Control-Allow-Methods", "*");
+    try req.setHeader("Access-Control-Allow-Headers", "*");
 }
 
 fn handleRequest(req: zap.Request) void {
